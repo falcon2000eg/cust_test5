@@ -825,8 +825,8 @@ Escape     - مسح التحديد
                     self.root.after(0, lambda: self.show_notification("تم إعادة تحميل البيانات بنجاح", notification_type="success"))
                     self.root.after(0, lambda: self.status_label.config(text="جاهز") if hasattr(self, 'status_label') and self.status_label and self.status_label.winfo_exists() else None)
                 except Exception as e:
-                    self.root.after(0, lambda: self.show_notification(f"خطأ في إعادة تحميل البيانات: {str(e)}", notification_type="error"))
-                    self.root.after(0, lambda: messagebox.showerror("خطأ", f"فشل في إعادة تحميل البيانات:\n{e}"))
+                    self.root.after(0, lambda e=e: self.show_notification(f"خطأ في إعادة تحميل البيانات: {str(e)}", notification_type="error"))
+                    self.root.after(0, lambda e=e: messagebox.showerror("خطأ", f"فشل في إعادة تحميل البيانات:\n{e}"))
                 finally:
                     self.root.after(0, self.hide_loading_indicator)
             

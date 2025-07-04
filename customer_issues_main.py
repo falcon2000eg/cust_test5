@@ -391,12 +391,30 @@ def main():
         logging.info("=" * 50)
 
 if __name__ == "__main__":
+    # تهيئة قاعدة البيانات وإنشاء الجداول والمستخدم admin قبل أي واجهة
+    from customer_issues_database import DatabaseManager
+    db_path = os.path.join(CURRENT_DIR, 'customer_issues_enhanced.db')
+    db_manager = DatabaseManager(db_name=db_path)
+    db_manager.init_database()
+    # إضافة مستخدم admin إذا لم يكن موجودًا
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM employees WHERE performance_number = 1")
+        exists = cursor.fetchone()[0]
+        if not exists:
+            cursor.execute("INSERT INTO employees (name, position, performance_number, created_date, is_active) VALUES (?, ?, ?, ?, 1)",
+                           ("admin", "مدير النظام", 1, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[DB INIT ERROR] {e}")
+
     # شاشة الدخول بعد شاشة السبلاش
     def start_main_app(user_id, user_name, performance_number):
         sys.exit(main())
 
     from login_window import LoginWindow
-    db_path = os.path.join(CURRENT_DIR, 'customer_issues_enhanced.db')
 
     # عرض شاشة السبلاش أولاً
     import tkinter as tk
