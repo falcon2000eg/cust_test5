@@ -2568,72 +2568,63 @@ Escape     - مسح التحديد
                 self.root.destroy()
     
     def show_dashboard(self):
-        """عرض لوحة التحكم الرئيسية"""
+        """عرض لوحة التحكم الرئيسية (نسخة محسنة تدعم الاستجابة)"""
         self.clear_root()
-        
-        # إعادة إنشاء Header
         self.create_fixed_header()
-        
-        # إطار لوحة التحكم
+
         dash_frame = tk.Frame(self.root, bg=self.colors['bg_main'])
-        dash_frame.pack(fill='both', expand=True, padx=20, pady=20)
-        
+        dash_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        dash_frame.rowconfigure(2, weight=1)
+        dash_frame.columnconfigure(0, weight=1)
+
         # العنوان الرئيسي
-        title_label = tk.Label(dash_frame, text="لوحة عرض الحالات", 
-                              font=self.fonts['header'], fg=self.colors['text_main'], 
-                              bg=self.colors['bg_main'])
-        title_label.pack(pady=(20, 30))
-        
+        title_label = tk.Label(dash_frame, text="لوحة عرض الحالات",
+                              font=self.fonts['header'], fg=self.colors['text_main'],
+                              bg=self.colors['bg_main'], anchor='e', justify='right')
+        title_label.grid(row=0, column=0, sticky='ew', pady=(10, 15), padx=10)
+
         # إطار الإحصائيات
         stats_frame = tk.Frame(dash_frame, bg=self.colors['bg_card'], relief='solid', bd=1)
-        stats_frame.pack(fill='x', pady=(0, 20), padx=20)
-        
+        stats_frame.grid(row=1, column=0, sticky='ew', padx=10, pady=(0, 10))
+        stats_frame.columnconfigure(0, weight=1)
+
         # حساب الإحصائيات
         cases = enhanced_db.get_all_cases() if hasattr(enhanced_db, 'get_all_cases') else []
         total_cases = len(cases)
         active_cases = len([case for case in cases if (case.get('status') if isinstance(case, dict) else (case[3] if len(case) > 3 else '')) not in ['تم حلها', 'مغلقة']])
         solved_cases = len([case for case in cases if (case.get('status') if isinstance(case, dict) else (case[3] if len(case) > 3 else '')) == 'تم حلها'])
-        
-        # عرض الإحصائيات
-        stats_text = f"""
-        إجمالي الحالات: {total_cases}
-        الحالات النشطة: {active_cases}
-        الحالات المحلولة: {solved_cases}
-        """
-        
-        stats_label = tk.Label(stats_frame, text=stats_text, 
-                              font=self.fonts['normal'], fg=self.colors['text_main'], 
-                              bg=self.colors['bg_card'], justify='right')
-        stats_label.pack(pady=15, padx=20)
-        
+
+        stats_text = f"إجمالي الحالات: {total_cases}    |    الحالات النشطة: {active_cases}    |    الحالات المحلولة: {solved_cases}"
+        stats_label = tk.Label(stats_frame, text=stats_text,
+                              font=self.fonts['normal'], fg=self.colors['text_main'],
+                              bg=self.colors['bg_card'], anchor='e', justify='right')
+        stats_label.grid(row=0, column=0, sticky='ew', pady=10, padx=10)
+
         # جدول الحالات النشطة
         tree_frame = tk.Frame(dash_frame, bg=self.colors['bg_main'])
-        tree_frame.pack(fill='both', expand=True, padx=20)
-        
-        # عنوان الجدول
-        tree_title = tk.Label(tree_frame, text="الحالات النشطة", 
-                             font=self.fonts['subheader'], fg=self.colors['text_main'], 
-                             bg=self.colors['bg_main'])
-        tree_title.pack(pady=(0, 10))
-        
-        # الجدول
+        tree_frame.grid(row=2, column=0, sticky='nsew', padx=10, pady=(0, 10))
+        tree_frame.rowconfigure(1, weight=1)
+        tree_frame.columnconfigure(0, weight=1)
+
+        tree_title = tk.Label(tree_frame, text="الحالات النشطة",
+                             font=self.fonts['subheader'], fg=self.colors['text_main'],
+                             bg=self.colors['bg_main'], anchor='e', justify='right')
+        tree_title.grid(row=0, column=0, sticky='ew', pady=(0, 5))
+
         columns = ("اسم العميل", "رقم المشترك", "تصنيف المشكلة", "حالة المشكلة", "تاريخ الإضافة")
-        tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=15)
-        
+        tree = ttk.Treeview(tree_frame, columns=columns, show='headings')
         for col in columns:
-            tree.heading(col, text=col)
-            tree.column(col, width=150)
-        
+            tree.heading(col, text=col, anchor='e')
+            tree.column(col, anchor='e', stretch=True, width=120, minwidth=80)
+
         # Scrollbar رأسي
         scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=scrollbar.set)
-        
-        tree.pack(side='left', fill='both', expand=True)
-        scrollbar.pack(side='right', fill='y')
-        
+        tree.grid(row=1, column=0, sticky='nsew')
+        scrollbar.grid(row=1, column=1, sticky='ns')
+
         # تحميل البيانات - عرض فقط الحالات النشطة
         filtered_cases = [case for case in cases if (case.get('status') if isinstance(case, dict) else (case[3] if len(case) > 3 else '')) not in ['تم حلها', 'مغلقة']]
-        
         for case in filtered_cases:
             tree.insert('', 'end', values=(
                 case.get('customer_name', '') if isinstance(case, dict) else case[1],
@@ -2642,26 +2633,38 @@ Escape     - مسح التحديد
                 case.get('status', '') if isinstance(case, dict) else case[3],
                 case.get('created_date', '') if isinstance(case, dict) else case[7]
             ))
-        
+
         # أزرار التحكم
         buttons_frame = tk.Frame(dash_frame, bg=self.colors['bg_main'])
-        buttons_frame.pack(fill='x', pady=20)
-        
-        # زر دخول للنظام
-        enter_btn = tk.Button(buttons_frame, text="🚀 دخول للنظام", 
+        buttons_frame.grid(row=3, column=0, sticky='ew', pady=10, padx=10)
+        buttons_frame.columnconfigure(0, weight=1)
+        buttons_frame.columnconfigure(1, weight=1)
+
+        enter_btn = tk.Button(buttons_frame, text="🚀 دخول للنظام",
                              command=self.show_main_window,
                              font=self.fonts['button'], bg=self.colors['button_action'], fg='white',
                              relief='flat', padx=30, pady=15)
-        enter_btn.pack(side='right', padx=10)
+        enter_btn.grid(row=0, column=1, sticky='e', padx=5)
         self.create_tooltip(enter_btn, "الانتقال إلى النظام الرئيسي")
-        
-        # زر الإعدادات
-        settings_btn = tk.Button(buttons_frame, text="⚙️ الإعدادات", 
+
+        settings_btn = tk.Button(buttons_frame, text="⚙️ الإعدادات",
                                 command=self.show_settings_window,
                                 font=self.fonts['button'], bg=self.colors['button_secondary'], fg='white',
                                 relief='flat', padx=30, pady=15)
-        settings_btn.pack(side='right', padx=10)
+        settings_btn.grid(row=0, column=0, sticky='e', padx=5)
         self.create_tooltip(settings_btn, "إعدادات النظام")
+
+        # دعم تغيير الحجم التلقائي للأعمدة عند تغيير حجم النافذة
+        def on_resize(event=None):
+            total_width = tree_frame.winfo_width() - 20
+            col_count = len(columns)
+            if total_width > 0:
+                for col in columns:
+                    tree.column(col, width=max(int(total_width / col_count), 80))
+
+        tree_frame.bind('<Configure>', on_resize)
+        self.root.update_idletasks()
+        on_resize()
 
     def clear_root(self):
         for widget in self.root.winfo_children():
@@ -2999,7 +3002,7 @@ Escape     - مسح التحديد
             # تجهيز البيانات كقائمة dicts موحدة
             cases = []
             for case in self.cases_data:
-                # معالجة ترتيب الأعمدة بدقة حسب ما ترجعه get_all_cases
+              # معالجة ترتيب الأعمدة بدقة حسب ما ترجعه get_all_cases
                 if isinstance(case, dict):
                     cases.append({
                         "customer_name": case.get("customer_name", ""),
