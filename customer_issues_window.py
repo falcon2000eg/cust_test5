@@ -250,20 +250,22 @@ class EnhancedMainWindow:
         self.time_label.pack(side='left', padx=5)
         
         # بدء تحديث الوقت بعد إنشاء الواجهة بالكامل
+        self.is_closing = False
         self.root.after(100, self.update_time)
 
     def update_time(self):
         """تحديث الوقت والتاريخ في شريط الحالة"""
+        if getattr(self, 'is_closing', False):
+            return
         try:
             if hasattr(self, 'time_label') and self.time_label and self.time_label.winfo_exists():
                 current_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
                 self.time_label.config(text=f"🕐 {current_time}")
         except Exception:
             pass  # تجاهل الأخطاء في تحديث الوقت
-        
         # جدولة التحديث التالي
         try:
-            if hasattr(self, 'root') and self.root and self.root.winfo_exists():
+            if hasattr(self, 'root') and self.root and self.root.winfo_exists() and not getattr(self, 'is_closing', False):
                 self.root.after(1000, self.update_time)
         except Exception:
             pass  # تجاهل الأخطاء في جدولة التحديث
@@ -1297,16 +1299,52 @@ Escape     - مسح التحديد
         # إطار التبويبات
         tabs_frame = tk.Frame(parent, bg='#ffffff')
         tabs_frame.pack(fill='both', expand=True, padx=10, pady=10)
-        
+
         # نوت بوك التبويبات
         self.notebook = ttk.Notebook(tabs_frame)
         self.notebook.pack(fill='both', expand=True)
-        
+
         # التبويبات
         self.create_basic_data_tab()
         self.create_attachments_tab()
         self.create_correspondences_tab()
         self.create_audit_log_tab()
+        self.create_reports_tab()
+
+    def create_reports_tab(self):
+        """إنشاء تبويب التقارير"""
+        reports_frame = ttk.Frame(self.notebook)
+        self.notebook.add(reports_frame, text="التقارير")
+
+        # عنوان رئيسي
+        title = tk.Label(reports_frame, text="تقارير النظام", font=("Arial", 16, "bold"), fg="#2c3e50")
+        title.pack(pady=20)
+
+        # زر تصدير كل الحالات (Excel/CSV فقط)
+        export_all_btn = tk.Button(reports_frame, text="تصدير كل الحالات (Excel/CSV)", font=("Arial", 12), bg="#3498db", fg="white", command=self.export_cases_data)
+        export_all_btn.pack(pady=10)
+
+        # زر تقرير إحصائي سريع
+        stats_btn = tk.Button(reports_frame, text="تقرير إحصائي سريع", font=("Arial", 12), bg="#27ae60", fg="white", command=self.show_quick_stats_report)
+        stats_btn.pack(pady=10)
+
+        # منطقة عرض التقرير الإحصائي
+        self.stats_report_label = tk.Label(reports_frame, text="", font=("Arial", 11), fg="#2c3e50", justify="right")
+        self.stats_report_label.pack(pady=20)
+
+    def show_quick_stats_report(self):
+        """عرض تقرير إحصائي سريع في تبويب التقارير"""
+        total_cases = len(self.cases_data)
+        active_cases = len([case for case in self.cases_data if (case.get('status') if isinstance(case, dict) else (case[3] if len(case) > 3 else '')) not in ['تم حلها', 'مغلقة']])
+        solved_cases = len([case for case in self.cases_data if (case.get('status') if isinstance(case, dict) else (case[3] if len(case) > 3 else '')) == 'تم حلها'])
+        closed_cases = len([case for case in self.cases_data if (case.get('status') if isinstance(case, dict) else (case[3] if len(case) > 3 else '')) == 'مغلقة'])
+        stats_text = f"""
+        إجمالي الحالات: {total_cases}\n
+        الحالات النشطة: {active_cases}\n
+        الحالات المحلولة: {solved_cases}\n
+        الحالات المغلقة: {closed_cases}
+        """
+        self.stats_report_label.config(text=stats_text)
     
     def create_basic_data_tab(self):
         """إنشاء تبويب البيانات الأساسية بمحاذاة يمين"""
@@ -2519,10 +2557,10 @@ Escape     - مسح التحديد
         """معالجة حدث إغلاق النافذة"""
         if messagebox.askokcancel("خروج", "هل تريد الخروج من النظام؟"):
             try:
+                self.is_closing = True
                 # إنشاء نسخة احتياطية قبل الإغلاق
                 if hasattr(self, 'file_manager'):
                     self.file_manager.cleanup_old_backups()
-                
                 self.show_notification("جاري إغلاق النظام...", notification_type="info")
                 self.root.after(1000, self.root.destroy)
             except Exception as e:
@@ -2927,45 +2965,87 @@ Escape     - مسح التحديد
         close_btn.pack(side='right', padx=10)
     
     def export_cases_data(self):
-        """تصدير بيانات الحالات إلى ملف CSV"""
+        """تصدير بيانات الحالات إلى CSV أو Excel فقط"""
+        from tkinter import filedialog, simpledialog
+        import csv
+        from reports_utils import export_cases_to_excel
+
+        # اختيار نوع التقرير (Excel/CSV فقط)
+        filetypes = [
+            ("CSV files", "*.csv"),
+            ("Excel files", "*.xlsx"),
+            ("All files", "*.*")
+        ]
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=filetypes,
+            title="حفظ تقرير الحالات"
+        )
+        if not file_path:
+            return
+
         try:
-            from tkinter import filedialog
-            import csv
-            
-            # اختيار مكان حفظ الملف
-            file_path = filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-                title="حفظ بيانات الحالات"
-            )
-            
-            if not file_path:
-                return
-            
-            # كتابة البيانات إلى ملف CSV
-            with open(file_path, 'w', newline='', encoding='utf-8-sig') as csvfile:
-                writer = csv.writer(csvfile)
-                
-                # كتابة العناوين
-                headers = ["اسم العميل", "رقم المشترك", "تصنيف المشكلة", "حالة المشكلة", "تاريخ الإضافة", "آخر تعديل"]
-                writer.writerow(headers)
-                
-                # كتابة البيانات
-                for case in self.cases_data:
-                    if isinstance(case, dict):
+            # تجهيز الأعمدة الرئيسية (تعديل حسب قاعدة البيانات لديك)
+            columns = [
+                ("اسم العميل", "customer_name"),
+                ("عنوان العميل", "customer_address"),
+                ("رقم المشترك", "subscriber_number"),
+                ("تصنيف المشكلة", "category_name"),
+                ("حالة المشكلة", "status"),
+                ("تاريخ ورود المشكلة", "received_date"),
+                ("تاريخ الإضافة", "created_date"),
+                ("آخر تعديل", "modified_date")
+            ]
+            # تجهيز البيانات كقائمة dicts موحدة
+            cases = []
+            for case in self.cases_data:
+                # معالجة ترتيب الأعمدة بدقة حسب ما ترجعه get_all_cases
+                if isinstance(case, dict):
+                    cases.append({
+                        "customer_name": case.get("customer_name", ""),
+                        "customer_address": case.get("customer_address", case.get("address", "")),
+                        "subscriber_number": case.get("subscriber_number", ""),
+                        "category_name": case.get("category_name", ""),
+                        "status": case.get("status", ""),
+                        "received_date": case.get("received_date", ""),
+                        "created_date": case.get("created_date", ""),
+                        "modified_date": case.get("modified_date", "")
+                    })
+                elif isinstance(case, tuple):
+                    # الترتيب الجديد: id, customer_name, customer_address, subscriber_number, status, category_name, color_code, modified_by_name, received_date, created_date, modified_date
+                    try:
+                        cases.append({
+                            "customer_name": case[1] if len(case) > 1 else '',
+                            "customer_address": case[2] if len(case) > 2 else '',
+                            "subscriber_number": case[3] if len(case) > 3 else '',
+                            "category_name": case[5] if len(case) > 5 else '',
+                            "status": case[4] if len(case) > 4 else '',
+                            "received_date": case[8] if len(case) > 8 else '',
+                            "created_date": case[9] if len(case) > 9 else '',
+                            "modified_date": case[10] if len(case) > 10 else ''
+                        })
+                    except Exception:
+                        pass
+            if file_path.endswith('.xlsx'):
+                export_cases_to_excel(cases, file_path, custom_columns=columns)
+            else:
+                # CSV الافتراضي
+                with open(file_path, 'w', newline='', encoding='utf-8-sig') as csvfile:
+                    writer = csv.writer(csvfile)
+                    headers = [col[0] for col in columns]
+                    writer.writerow(headers)
+                    for case in cases:
                         writer.writerow([
                             case.get('customer_name', ''),
+                            case.get('customer_address', ''),
                             case.get('subscriber_number', ''),
                             case.get('category_name', ''),
                             case.get('status', ''),
+                            case.get('received_date', ''),
                             case.get('created_date', ''),
                             case.get('modified_date', '')
                         ])
-                    elif isinstance(case, tuple):
-                        writer.writerow([case[1], case[2], case[4], case[3], case[7], case[8]])
-            
             self.show_notification(f"تم تصدير البيانات إلى: {file_path}", notification_type="success")
-            
         except Exception as e:
             self.show_notification(f"خطأ في تصدير البيانات: {str(e)}", notification_type="error")
             messagebox.showerror("خطأ", f"فشل في تصدير البيانات:\n{e}")

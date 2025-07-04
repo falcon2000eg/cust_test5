@@ -13,6 +13,7 @@ Date: December 2024
 VERSION = "5.0.0"
 
 import sys
+from error_handler import handle_error
 import os
 import logging
 import tkinter as tk
@@ -38,9 +39,9 @@ def setup_logging():
     """إعداد نظام السجلات"""
     log_dir = os.path.join(CURRENT_DIR, 'logs')
     os.makedirs(log_dir, exist_ok=True)
-    
+
     log_file = os.path.join(log_dir, f'customer_issues_{datetime.now().strftime("%Y%m%d")}.log')
-    
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
@@ -49,6 +50,16 @@ def setup_logging():
             logging.StreamHandler()
         ]
     )
+
+    # حذف ملفات log القديمة (الاحتفاظ بآخر 5 فقط)
+    log_files = [f for f in os.listdir(log_dir) if f.startswith('customer_issues_') and f.endswith('.log')]
+    if len(log_files) > 5:
+        log_files.sort()
+        for old_log in log_files[:-5]:
+            try:
+                os.remove(os.path.join(log_dir, old_log))
+            except Exception:
+                pass
 
 def check_requirements():
     """فحص المتطلبات الأساسية"""
@@ -86,26 +97,26 @@ def create_backup():
     try:
         backup_dir = os.path.join(CURRENT_DIR, 'backups')
         os.makedirs(backup_dir, exist_ok=True)
-        
         db_path = os.path.join(CURRENT_DIR, 'customer_issues_enhanced.db')
         if os.path.exists(db_path):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = os.path.join(backup_dir, f'customer_issues_backup_{timestamp}.db')
             shutil.copy2(db_path, backup_path)
             logging.info(f"تم إنشاء نسخة احتياطية: {backup_path}")
-            
-            # تنظيف النسخ القديمة (الاحتفاظ بـ 10 نسخ)
+            # تنظيف النسخ القديمة (الاحتفاظ بـ 5 نسخ فقط)
             backup_files = [f for f in os.listdir(backup_dir) if f.startswith('customer_issues_backup_')]
-            if len(backup_files) > 10:
+            if len(backup_files) > 5:
                 backup_files.sort()
-                for old_backup in backup_files[:-10]:
+                for old_backup in backup_files[:-5]:
                     old_path = os.path.join(backup_dir, old_backup)
                     os.remove(old_path)
                     logging.info(f"تم حذف النسخة الاحتياطية القديمة: {old_backup}")
-        
+            # إشعار المستخدم بنجاح النسخ الاحتياطي (يظهر فقط عند النسخ اليدوي وليس عند بدء التشغيل)
+            if not getattr(create_backup, 'silent', False):
+                messagebox.showinfo("نسخ احتياطي", "تم إنشاء نسخة احتياطية بنجاح.")
         return True
     except Exception as e:
-        logging.error(f"خطأ في إنشاء النسخة الاحتياطية: {e}")
+        handle_error("خطأ في إنشاء النسخة الاحتياطية", e)
         return False
 
 def initialize_system():
@@ -120,7 +131,10 @@ def initialize_system():
         logging.info(f"تم إنشاء/فحص المجلد: {dir_path}")
     
     # إنشاء نسخة احتياطية
+    # عند بدء التشغيل، لا تظهر رسالة النسخ الاحتياطي
+    create_backup.silent = True
     create_backup()
+    create_backup.silent = False
     
     # تهيئة قاعدة البيانات
     try:
@@ -129,86 +143,83 @@ def initialize_system():
         db_manager.init_database()
         # إضافة مستخدم admin الثابت إذا لم يكن موجودًا
         try:
-            conn = sqlite3.connect(os.path.join(CURRENT_DIR, 'customer_issues_enhanced.db'))
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM employees WHERE performance_number = 1")
-            exists = cursor.fetchone()[0]
-            if not exists:
-                cursor.execute("INSERT INTO employees (name, position, performance_number, created_date, is_active) VALUES (?, ?, ?, ?, 1)",
-                               ("admin", "مدير النظام", 1, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-                conn.commit()
-            conn.close()
+            with sqlite3.connect(os.path.join(CURRENT_DIR, 'customer_issues_enhanced.db')) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM employees WHERE performance_number = 1")
+                exists = cursor.fetchone()[0]
+                if not exists:
+                    cursor.execute("INSERT INTO employees (name, position, performance_number, created_date, is_active) VALUES (?, ?, ?, ?, 1)",
+                                   ("admin", "مدير النظام", 1, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                    conn.commit()
         except Exception as admin_err:
-            logging.error(f"خطأ في إضافة مستخدم admin: {admin_err}")
+            handle_error("خطأ في إضافة مستخدم admin", admin_err, show_messagebox=True)
         # تأكد من وجود عمود performance_number في كل تشغيل
         try:
-            conn = sqlite3.connect(os.path.join(CURRENT_DIR, 'customer_issues_enhanced.db'))
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA table_info(employees)")
-            columns = [row[1] for row in cursor.fetchall()]
-            perf_col = None
-            for row in cursor.execute("PRAGMA table_info(employees)"):
-                if row[1] == 'performance_number':
-                    perf_col = row
-            # إذا العمود غير موجود أو ليس INTEGER/UNIQUE، أعد بناء الجدول
-            need_migration = False
-            if not perf_col:
-                need_migration = True
-            elif perf_col[2].upper() != 'INTEGER':
-                need_migration = True
-            # ترحيل الجدول إذا لزم الأمر
-            if need_migration:
-                logging.info("يتم ترحيل جدول الموظفين لجعل رقم الأداء INT وفريد...")
-                # إنشاء جدول مؤقت
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS employees_new (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        name TEXT,
-                        position TEXT,
-                        performance_number INTEGER UNIQUE NOT NULL,
-                        created_date TEXT,
-                        is_active INTEGER DEFAULT 1
-                    )
-                ''')
-                # جلب كل الموظفين القدامى
-                cursor.execute("SELECT id, name, position, created_date, is_active FROM employees")
-                old_emps = cursor.fetchall()
-                # توليد أرقام أداء صحيحة متفردة
-                used_numbers = set()
-                next_perf = 1001
-                for emp in old_emps:
-                    emp_id, name, position, created_date, is_active = emp
-                    # حاول استخراج رقم صحيح من performance_number القديم إن وجد
-                    perf_num = None
-                    try:
-                        cursor.execute("SELECT performance_number FROM employees WHERE id=?", (emp_id,))
-                        val = cursor.fetchone()
-                        if val and val[0]:
-                            try:
-                                perf_num = int(val[0])
-                            except:
-                                perf_num = None
-                    except:
+            with sqlite3.connect(os.path.join(CURRENT_DIR, 'customer_issues_enhanced.db')) as conn:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(employees)")
+                columns = [row[1] for row in cursor.fetchall()]
+                perf_col = None
+                for row in cursor.execute("PRAGMA table_info(employees)"):
+                    if row[1] == 'performance_number':
+                        perf_col = row
+                # إذا العمود غير موجود أو ليس INTEGER/UNIQUE، أعد بناء الجدول
+                need_migration = False
+                if not perf_col:
+                    need_migration = True
+                elif perf_col[2].upper() != 'INTEGER':
+                    need_migration = True
+                # ترحيل الجدول إذا لزم الأمر
+                if need_migration:
+                    logging.info("يتم ترحيل جدول الموظفين لجعل رقم الأداء INT وفريد...")
+                    # إنشاء جدول مؤقت
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS employees_new (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            name TEXT,
+                            position TEXT,
+                            performance_number INTEGER UNIQUE NOT NULL,
+                            created_date TEXT,
+                            is_active INTEGER DEFAULT 1
+                        )
+                    ''')
+                    # جلب كل الموظفين القدامى
+                    cursor.execute("SELECT id, name, position, created_date, is_active FROM employees")
+                    old_emps = cursor.fetchall()
+                    # توليد أرقام أداء صحيحة متفردة
+                    used_numbers = set()
+                    next_perf = 1001
+                    for emp in old_emps:
+                        emp_id, name, position, created_date, is_active = emp
+                        # حاول استخراج رقم صحيح من performance_number القديم إن وجد
                         perf_num = None
-                    # إذا لم يوجد أو غير صالح، أعطه رقم جديد متفرد
-                    while perf_num is None or perf_num in used_numbers:
-                        perf_num = next_perf
-                        next_perf += 1
-                    used_numbers.add(perf_num)
-                    cursor.execute("INSERT INTO employees_new (name, position, performance_number, created_date, is_active) VALUES (?, ?, ?, ?, ?)",
-                                   (name, position, perf_num, created_date, is_active))
-                conn.commit()
-                # حذف الجدول القديم وإعادة تسمية الجديد
-                cursor.execute("DROP TABLE employees")
-                cursor.execute("ALTER TABLE employees_new RENAME TO employees")
-                conn.commit()
-            conn.close()
+                        try:
+                            cursor.execute("SELECT performance_number FROM employees WHERE id=?", (emp_id,))
+                            val = cursor.fetchone()
+                            if val and val[0]:
+                                try:
+                                    perf_num = int(val[0])
+                                except:
+                                    perf_num = None
+                        except:
+                            perf_num = None
+                        # إذا لم يوجد أو غير صالح، أعطه رقم جديد متفرد
+                        while perf_num is None or perf_num in used_numbers:
+                            perf_num = next_perf
+                            next_perf += 1
+                        used_numbers.add(perf_num)
+                        cursor.execute("INSERT INTO employees_new (name, position, performance_number, created_date, is_active) VALUES (?, ?, ?, ?, ?)",
+                                       (name, position, perf_num, created_date, is_active))
+                    conn.commit()
+                    # حذف الجدول القديم وإعادة تسمية الجديد
+                    cursor.execute("DROP TABLE employees")
+                    cursor.execute("ALTER TABLE employees_new RENAME TO employees")
+                    conn.commit()
         except Exception as alter_err:
-            logging.error(f"خطأ في معالجة عمود رقم الأداء: {alter_err}")
+            handle_error("خطأ في معالجة عمود رقم الأداء", alter_err, show_messagebox=True)
         logging.info("✅ تم تهيئة قاعدة البيانات بنجاح")
     except Exception as e:
-        logging.error(f"خطأ في تهيئة قاعدة البيانات: {e}")
-        messagebox.showerror("خطأ في قاعدة البيانات", f"فشل في تهيئة قاعدة البيانات:\n{e}")
+        handle_error("خطأ في تهيئة قاعدة البيانات", e, show_messagebox=True)
         return False
     
     logging.info("✅ تم تهيئة النظام بنجاح")
@@ -342,51 +353,51 @@ def main():
         # عرض شاشة البداية
         splash = show_splash_screen()
         splash.update()
-        
+
         # فحص المتطلبات
         if not check_requirements():
             splash.destroy()
             return 1
-        
+
         # تهيئة النظام
         splash.update()
         if not initialize_system():
             splash.destroy()
             return 1
-        
+
         # استيراد وتشغيل الواجهة الرئيسية
         splash.update()
         time.sleep(5)  # عرض splash screen لمدة 3 ثواني
         try:
             from customer_issues_window import EnhancedMainWindow
-            
+
             # إغلاق شاشة البداية
             splash.destroy()
-            
+
             # إظهار النافذة الرئيسية
             root.destroy()  # Destroy the hidden root window
-            
+
             # تطبيق النافذة الرئيسية
             app = EnhancedMainWindow()
-            
+
             logging.info("✅ تم تشغيل النظام بنجاح")
-            
+
             # بدء حلقة الأحداث الرئيسية
             app.run()
-            
+
         except ImportError as e:
-            logging.error(f"خطأ في استيراد الواجهة الرئيسية: {e}")
-            messagebox.showerror("خطأ في النظام", f"فشل في تحميل الواجهة الرئيسية:\n{e}")
+            handle_error("خطأ في استيراد الواجهة الرئيسية", e, show_messagebox=True)
             return 1
-        
+
     except Exception as e:
-        logging.error(f"خطأ عام في النظام: {e}")
-        messagebox.showerror("خطأ في النظام", f"حدث خطأ غير متوقع:\n{e}")
+        handle_error("خطأ عام في النظام", e, show_messagebox=True)
         return 1
-    
+
     finally:
-        # إنشاء نسخة احتياطية عند الإغلاق
+        # إنشاء نسخة احتياطية عند الإغلاق بدون أي رسالة أو تفاعل مع الواجهة
+        create_backup.silent = True
         create_backup()
+        create_backup.silent = False
         logging.info("تم إغلاق النظام")
         logging.info("=" * 50)
 
@@ -416,15 +427,43 @@ if __name__ == "__main__":
 
     from login_window import LoginWindow
 
-    # عرض شاشة السبلاش أولاً
+
+    # عرض شاشة السبلاش أولاً مع حماية المؤقتات من أخطاء after
     import tkinter as tk
     splash_root = tk.Tk()
     splash_root.withdraw()
     splash = show_splash_screen()
     splash.update()
-    splash.after(2000, splash.destroy)  # عرض السبلاش 2 ثانية
-    splash_root.after(2200, splash_root.destroy)
-    splash_root.mainloop()
+
+
+    # --- إدارة مؤقتات after splash بشكل آمن ---
+    splash_timer = None
+    splash_root_timer = None
+
+    def safe_destroy(widget, timer_id=None):
+        try:
+            if timer_id and widget and widget.winfo_exists():
+                widget.after_cancel(timer_id)
+        except Exception:
+            pass
+        try:
+            if widget and widget.winfo_exists():
+                widget.destroy()
+        except Exception:
+            pass
+
+    def destroy_splash():
+        safe_destroy(splash, splash_timer)
+
+    def destroy_splash_root():
+        safe_destroy(splash_root, splash_root_timer)
+
+    splash_timer = splash.after(2000, destroy_splash)
+    splash_root_timer = splash_root.after(2200, destroy_splash_root)
+    try:
+        splash_root.mainloop()
+    except Exception:
+        pass
 
     # بعد السبلاش، أظهر شاشة الدخول
     LoginWindow(db_path, on_success=start_main_app)

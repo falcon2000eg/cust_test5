@@ -563,19 +563,18 @@ class DatabaseManager:
         self.execute_query(query, params)
 
     def get_all_cases(self):
-        """الحصول على جميع الحالات كقوائم dict"""
+        """الحصول على جميع الحالات كقوائم dict مع العنوان وتاريخ الورود"""
         query = '''
-            SELECT c.id, c.customer_name, c.subscriber_number, c.status, 
+            SELECT c.id, c.customer_name, c.address, c.subscriber_number, c.status, 
                    ic.category_name, ic.color_code, e.name as modified_by_name,
-                   c.created_date, c.modified_date
+                   c.received_date, c.created_date, c.modified_date
             FROM cases c
             LEFT JOIN issue_categories ic ON c.category_id = ic.id
             LEFT JOIN employees e ON c.modified_by = e.id
             ORDER BY c.modified_date DESC, c.created_date DESC
         '''
         rows = self.execute_query(query)
-        # تحويل النتائج إلى dicts
-        columns = ['id', 'customer_name', 'subscriber_number', 'status', 'category_name', 'color_code', 'modified_by_name', 'created_date', 'modified_date']
+        columns = ['id', 'customer_name', 'customer_address', 'subscriber_number', 'status', 'category_name', 'color_code', 'modified_by_name', 'received_date', 'created_date', 'modified_date']
         return [dict(zip(columns, row)) for row in rows]
 
     def get_attachments(self, case_id):
