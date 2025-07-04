@@ -1,0 +1,46 @@
+# Customer Issues Management System Requirements
+# متطلبات نظام إدارة مشاكل العملاء
+
+# Core Python modules (included with Python)
+# المكتبات الأساسية (مدمجة مع Python)
+
+# tkinter - GUI framework (included with Python)
+# sqlite3 - Database (included with Python)
+# datetime - Date/time handling (included with Python)
+# os - Operating system interface (included with Python)
+# sys - System-specific parameters (included with Python)
+# shutil - High-level file operations (included with Python)
+# platform - Platform identification (included with Python)
+# logging - Logging facility (included with Python)
+
+# Optional dependencies for enhanced features
+# متطلبات اختيارية للميزات المتقدمة
+
+# For PDF report generation (optional)
+# reportlab>=3.6.0
+
+# For enhanced image handling (optional)
+# Pillow>=8.0.0
+
+# For advanced date parsing (optional)
+# python-dateutil>=2.8.0
+
+# For Excel export functionality (optional)
+# openpyxl>=3.0.0
+
+# Development and testing tools (optional)
+# أدوات التطوير والاختبار (اختيارية)
+
+# pytest>=6.0.0
+# black>=21.0.0
+# flake8>=3.9.0
+
+# Windows-specific dependencies (optional)
+# متطلبات خاصة بويندوز (اختيارية)
+
+# pywin32>=301; sys_platform=="win32"
+
+# Note: This system is designed to work with Python's built-in modules only
+# ملاحظة: تم تصميم هذا النظام للعمل مع المكتبات المدمجة في Python فقط
+# No external dependencies are required for basic functionality
+# لا توجد متطلبات خارجية مطلوبة للوظائف الأساسية
