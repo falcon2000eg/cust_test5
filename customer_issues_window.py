@@ -59,14 +59,18 @@ class EnhancedMainWindow:
             self.root.option_add('*Entry.justify', 'right')
             self.root.option_add('*Label.anchor', 'e')
             self.root.option_add('*Button.anchor', 'e')
+            
+            # إعداد نمط التبويبات للغة العربية
+            style = ttk.Style()
+            style.configure('TNotebook.Tab', anchor='e', justify='right', padding=[10, 5])
+            style.configure('TNotebook', tabmargins=[2, 5, 2, 0])
         except Exception:
             pass
 
         # إنشاء قائمة منسدلة
         self.create_menu_bar()
         
-        # إنشاء Header ثابت
-        self.create_fixed_header()
+        # إزالة Header ثابت لتوفير مساحة
 
         # إنشاء شريط الأدوات
         self.create_toolbar()
@@ -85,6 +89,7 @@ class EnhancedMainWindow:
         self.notification_label = None
         self.loading_indicator = None
         self.is_loading = False
+        self.pending_dashboard_case = None
 
         # ربط وظائف النظام
         try:
@@ -143,7 +148,6 @@ class EnhancedMainWindow:
         # قائمة العرض
         view_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="👁️ العرض", menu=view_menu)
-        view_menu.add_command(label="📊 لوحة التحكم", command=self.show_dashboard)
         view_menu.add_command(label="📋 جميع الحالات", command=self.show_all_cases_window)
         view_menu.add_separator()
         view_menu.add_command(label="🔄 تحديث البيانات", command=self.refresh_data, accelerator="F5")
@@ -158,40 +162,62 @@ class EnhancedMainWindow:
         help_menu.add_command(label="⌨️ اختصارات لوحة المفاتيح", command=self.show_shortcuts)
 
     def create_toolbar(self):
-        """إنشاء شريط الأدوات محسن"""
-        toolbar_frame = tk.Frame(self.root, bg=self.colors['bg_light'], height=60, relief='solid', bd=1)
+        """إنشاء شريط الأدوات محسن مع عناوين كبيرة وواضحة"""
+        toolbar_frame = tk.Frame(self.root, bg=self.colors['bg_light'], height=90, relief='solid', bd=1)
         toolbar_frame.pack(fill='x', side='top')
         toolbar_frame.pack_propagate(False)
         
+        # عنوان النظام في الجانب الأيمن
+        title_frame = tk.Frame(toolbar_frame, bg=self.colors['bg_light'])
+        title_frame.pack(side='right', fill='y', padx=15)
+        
+        title_label = tk.Label(title_frame, text="نظام إدارة مشاكل العملاء", 
+                              font=self.fonts['subheader'], fg=self.colors['text_main'], 
+                              bg=self.colors['bg_light'])
+        title_label.pack(side='right', pady=10)
+        
+        version_label = tk.Label(title_frame, text="v5.0.1", 
+                                font=self.fonts['small'], fg=self.colors['text_subtle'], 
+                                bg=self.colors['bg_light'])
+        version_label.pack(side='right', pady=(0, 10))
+        
         # إطار للأزرار مع توزيع أفضل
         buttons_frame = tk.Frame(toolbar_frame, bg=self.colors['bg_light'])
-        buttons_frame.pack(expand=True, fill='both', padx=10, pady=5)
+        buttons_frame.pack(side='left', expand=True, fill='both', padx=10, pady=5)
         
-        # أزرار شريط الأدوات مع تصميم محسن
+        # أزرار شريط الأدوات مع عناوين وتصميم محسن
         buttons_data = [
             ("🆕", "حالة جديدة", self.add_new_case, self.colors['button_save'], "إضافة حالة جديدة للعميل"),
             ("💾", "حفظ", self.save_changes, self.colors['button_action'], "حفظ التغييرات"),
             ("🖨️", "طباعة", self.print_case, self.colors['button_secondary'], "طباعة تقرير الحالة"),
-            ("📎", "مرفق", self.add_attachment, self.colors['button_warning'], "إضافة مرفق للحالة"),
-            ("✉️", "مراسلة", self.add_correspondence, self.colors['button_action'], "إضافة مراسلة جديدة"),
             ("🔄", "تحديث", self.refresh_data, self.colors['button_secondary'], "تحديث البيانات"),
             ("🗑️", "حذف", self.delete_case, self.colors['button_delete'], "حذف الحالة المحددة"),
+            ("👥", "الموظفين", self.manage_employees, self.colors['button_warning'], "إدارة الموظفين"),
             ("⚙️", "إعدادات", self.show_settings_window, self.colors['button_secondary'], "إعدادات النظام"),
+            ("❌", "خروج", self.on_closing, self.colors['button_delete'], "إغلاق النظام"),
         ]
         
-        for icon, tooltip, command, color, description in buttons_data:
-            # إطار لكل زر مع تأثيرات بصرية
+        for icon, title, command, color, description in buttons_data:
+            # إطار لكل زر مع عنوان
             btn_frame = tk.Frame(buttons_frame, bg=self.colors['bg_light'])
-            btn_frame.pack(side='right', padx=3, pady=2)
+            btn_frame.pack(side='right', padx=5, pady=2)
             
+            # الزر مع الأيقونة - الحجم الأصلي
             btn = tk.Button(btn_frame, text=icon, command=command,
-                           font=('Arial', 14), bg=color, fg='white',
-                           relief='flat', padx=12, pady=8, width=3,
+                           font=('Arial', 16), bg=color, fg='white',
+                           relief='flat', padx=15, pady=10, width=4,
                            cursor='hand2')
             btn.pack()
             
-            # إضافة tooltip محسن
-            self.create_tooltip(btn, f"{tooltip}\n{description}")
+            # عنوان الزر - كبير وواضح فقط
+            title_label = tk.Label(btn_frame, text=title, 
+                                  font=self.fonts['subheader'], fg=self.colors['text_main'], 
+                                  bg=self.colors['bg_light'], anchor='center')
+            title_label.pack(pady=(2, 0))
+            
+            # إضافة tooltip محسن للزر والعنوان
+            self.create_tooltip(btn, f"{title}\n{description}")
+            self.create_tooltip(title_label, f"{title}\n{description}")
             
             # تأثيرات بصرية محسنة عند التمرير
             def on_enter(event, button=btn, original_color=color):
@@ -204,6 +230,8 @@ class EnhancedMainWindow:
             
             btn.bind('<Enter>', on_enter)
             btn.bind('<Leave>', on_leave)
+            title_label.bind('<Enter>', on_enter)
+            title_label.bind('<Leave>', on_leave)
             
             # تأثير عند النقر
             def on_click(event, button=btn, original_color=color):
@@ -211,6 +239,7 @@ class EnhancedMainWindow:
                 self.root.after(100, lambda: button.config(bg=original_color))
             
             btn.bind('<Button-1>', on_click)
+            title_label.bind('<Button-1>', lambda e: command())
 
     def create_status_bar(self):
         """إنشاء شريط الحالة محسن مع ساعة حقيقية"""
@@ -235,7 +264,7 @@ class EnhancedMainWindow:
         cases_frame = tk.Frame(info_frame, bg=self.colors['header'])
         cases_frame.pack(side='right', fill='y', padx=20)
         
-        self.cases_count_label = tk.Label(cases_frame, text="📋 الحالات: 0", 
+        self.cases_count_label = tk.Label(cases_frame, text="📋 جميع الحالات: 0", 
                                          font=self.fonts['small'], fg='white', 
                                          bg=self.colors['header'])
         self.cases_count_label.pack(side='right', padx=5)
@@ -295,7 +324,6 @@ class EnhancedMainWindow:
         
         # اختصارات إضافية
         self.root.bind('<Control-e>', lambda e: self.manage_employees())
-        self.root.bind('<Control-d>', lambda e: self.show_dashboard())
         self.root.bind('<Control-l>', lambda e: self.show_all_cases_window())
         
         # منع اختصارات المتصفح
@@ -542,10 +570,10 @@ class EnhancedMainWindow:
 نظام إدارة مشاكل العملاء
 Customer Issues Management System
 
-الإصدار: 4.0.0
+الإصدار: 5.1
 النسخة: النسخة المحسنة
 
-المطور: مساعد الذكي الاصطناعي
+المطور: مصطفى اسماعيل
 التاريخ: ديسمبر 2024
 
 المميزات:
@@ -708,6 +736,58 @@ Escape     - مسح التحديد
             self.functions.load_initial_data()
         else:
             self.load_initial_data()
+        
+        # تحميل الحالة المعلقة من لوحة التحكم إذا وجدت
+        if hasattr(self, 'pending_dashboard_case') and self.pending_dashboard_case:
+            self.root.after(200, lambda: self._load_pending_dashboard_case())
+    
+    def _load_pending_dashboard_case(self):
+        """تحميل الحالة المعلقة من لوحة التحكم"""
+        try:
+            if hasattr(self, 'pending_dashboard_case') and self.pending_dashboard_case:
+                case = self.pending_dashboard_case
+                case_id = None
+                
+                if isinstance(case, dict):
+                    case_id = case.get('id')
+                elif isinstance(case, (list, tuple)) and len(case) > 0:
+                    case_id = case[0]
+                
+                # البحث عن الحالة في البيانات المحملة
+                target_case = None
+                for c in self.cases_data:
+                    current_id = None
+                    if isinstance(c, dict):
+                        current_id = c.get('id')
+                    elif isinstance(c, (list, tuple)) and len(c) > 0:
+                        current_id = c[0]
+                    
+                    if current_id == case_id:
+                        target_case = c
+                        break
+                
+                # إذا لم نجد الحالة في البيانات المحملة، استخدم البيانات الأصلية
+                if not target_case:
+                    target_case = case
+                
+                # تحميل الحالة
+                self.load_case(target_case)
+                
+                # إشعار المستخدم بنجاح التحميل
+                customer_name = target_case.get('customer_name', '') if isinstance(target_case, dict) else target_case[1] if len(target_case) > 1 else ''
+                self.show_notification(f"تم تحميل حالة العميل: {customer_name}", notification_type="success")
+                
+                # مسح الحالة المعلقة
+                delattr(self, 'pending_dashboard_case')
+                
+        except Exception as e:
+            self.show_notification(f"خطأ في تحميل الحالة المعلقة: {str(e)}", notification_type="error")
+            print(f"خطأ في تحميل الحالة المعلقة: {e}")
+            import traceback
+            traceback.print_exc()
+            # مسح الحالة المعلقة في حالة الخطأ
+            if hasattr(self, 'pending_dashboard_case'):
+                delattr(self, 'pending_dashboard_case')
     
     def setup_fonts(self):
         """إعداد الخطوط العربية الاحترافية"""
@@ -735,44 +815,19 @@ Escape     - مسح التحديد
             'button': get_font(0, 12, 'bold')
         }
     
-    def create_fixed_header(self):
-        """إنشاء header ثابت مع زر خروج"""
-        header_frame = tk.Frame(self.root, bg=self.colors['header'], height=60)
-        header_frame.pack(fill='x', side='top')
-        header_frame.pack_propagate(False)
-        
-        # العنوان الرئيسي
-        title_label = tk.Label(header_frame, text="نظام إدارة مشاكل العملاء", 
-                              font=self.fonts['header'], fg=self.colors['header_text'], 
-                              bg=self.colors['header'])
-        title_label.pack(side='right', padx=20, pady=15)
-        
-        # الإصدار
-        version_label = tk.Label(header_frame, text="v4.0.0", 
-                                font=self.fonts['small'], fg='#bdc3c7', 
-                                bg=self.colors['header'])
-        version_label.pack(side='right', padx=(0, 10), pady=15)
-        
-        # زر الخروج
-        exit_btn = tk.Button(header_frame, text="❌ خروج", 
-                            command=self.on_closing,
-                            font=self.fonts['button'], bg='#e74c3c', fg='white',
-                            relief='flat', padx=15, pady=5)
-        exit_btn.pack(side='left', padx=20, pady=15)
-        
-        # إضافة tooltip للزر
-        self.create_tooltip(exit_btn, "إغلاق النظام")
+    # تم إزالة create_fixed_header لتوفير مساحة
     
     def create_tooltip(self, widget, text):
-        """إنشاء tooltip للعنصر"""
+        """إنشاء tooltip للعنصر - محسن وأكبر"""
         def show_tooltip(event):
             tooltip = tk.Toplevel()
             tooltip.wm_overrideredirect(True)
-            tooltip.wm_geometry(f"+{event.x_root+10}+{event.y_root+10}")
+            tooltip.wm_geometry(f"+{event.x_root+15}+{event.y_root+15}")
             
+            # تصميم محسن للـ tooltip
             label = tk.Label(tooltip, text=text, justify='right',
-                           background="#ffffe0", relief='solid', borderwidth=1,
-                           font=self.fonts['small'])
+                           background="#2c3e50", relief='solid', borderwidth=2,
+                           font=self.fonts['normal'], fg='white', padx=10, pady=8)
             label.pack()
             
             def hide_tooltip():
@@ -806,8 +861,7 @@ Escape     - مسح التحديد
                     try:
                         if hasattr(self, 'cases_count_label') and self.cases_count_label and self.cases_count_label.winfo_exists():
                             total_cases = len(self.cases_data)
-                            active_cases = len([case for case in self.cases_data if case.get('status') not in ['تم حلها', 'مغلقة']])
-                            self.cases_count_label.config(text=f"📋 الحالات: {total_cases} (نشطة: {active_cases})")
+                            self.cases_count_label.config(text=f"📋 جميع الحالات: {total_cases}")
                     except Exception:
                         pass
                     
@@ -840,128 +894,96 @@ Escape     - مسح التحديد
             messagebox.showerror("خطأ", f"فشل في إعادة تحميل البيانات:\n{e}")
     
     def create_main_layout(self):
-        """إنشاء التخطيط الرئيسي"""
-        # الإطار الرئيسي
+        """إنشاء التخطيط الرئيسي محسن مع استغلال أفضل للمساحات"""
+        # الإطار الرئيسي - استغلال كامل للمساحة
         main_frame = tk.Frame(self.root, bg=self.colors['bg_main'])
-        main_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        main_frame.pack(fill='both', expand=True, padx=5, pady=5)
         
-        # اللوحة الجانبية (يمين)
+        # اللوحة الجانبية (يمين) - عرض ثابت
         self.create_sidebar(main_frame)
         
-        # فاصل
+        # فاصل رفيع
         separator = ttk.Separator(main_frame, orient='vertical')
-        separator.pack(side='right', fill='y', padx=5)
+        separator.pack(side='right', fill='y', padx=2)
         
-        # منطقة العرض الرئيسية (يسار)
+        # منطقة العرض الرئيسية (يسار) - استغلال كامل للمساحة المتبقية
         self.create_main_display(main_frame)
     
     def create_sidebar(self, parent):
-        """إنشاء اللوحة الجانبية مع دعم RTL وتوزيع محسّن"""
-        sidebar_frame = tk.Frame(parent, bg=self.colors['bg_card'], width=400, relief='raised', bd=1)
-        sidebar_frame.pack(side='right', fill='y', padx=(0, 5))
+        """إنشاء اللوحة الجانبية محسنة مع استغلال أفضل للمساحة"""
+        sidebar_frame = tk.Frame(parent, bg=self.colors['bg_card'], width=380, relief='raised', bd=1)
+        sidebar_frame.pack(side='right', fill='y', padx=(0, 3))
         sidebar_frame.pack_propagate(False)
-        # عنوان اللوحة الجانبية
-        header_frame = tk.Frame(sidebar_frame, bg=self.colors['header'], height=50)
+        
+        # عنوان اللوحة الجانبية - أكثر إحكاما
+        header_frame = tk.Frame(sidebar_frame, bg=self.colors['header'], height=40)
         header_frame.pack(fill='x')
         header_frame.pack_propagate(False)
         header_label = tk.Label(header_frame, text="قائمة الحالات", 
-                               font=self.fonts['header'], fg=self.colors['header_text'], bg=self.colors['header'], anchor='e', justify='right')
-        header_label.pack(expand=True, anchor='e')
-        # زر العودة للشاشة الرئيسية
-        back_btn = tk.Button(sidebar_frame, text="⬅️ العودة للشاشة الرئيسية", font=self.fonts['small'], command=self.show_dashboard, bg=self.colors['button_secondary'], fg='white', anchor='e', justify='right')
-        back_btn.pack(fill='x', padx=10, pady=(5, 0))
+                               font=self.fonts['subheader'], fg=self.colors['header_text'], bg=self.colors['header'], anchor='e', justify='right')
+        header_label.pack(expand=True, anchor='e', padx=10)
+        
+        # زر العودة للشاشة الرئيسية - أكثر إحكاما
+        back_btn = tk.Button(sidebar_frame, text="⬅️ العودة للشاشة الرئيسية", 
+                            font=self.fonts['small'], command=self.show_dashboard, 
+                            bg=self.colors['button_secondary'], fg='white', 
+                            relief='flat', padx=10, pady=3)
+        back_btn.pack(fill='x', padx=8, pady=(3, 0))
+        
         # أزرار الإجراءات
         self.create_action_buttons(sidebar_frame)
-        # أدوات البحث والفلترة
+        
+        # أدوات البحث والفلترة - أكثر إحكاما
         self.create_search_filters(sidebar_frame)
-        # قائمة الحالات
+        
+        # قائمة الحالات - استغلال كامل للمساحة المتبقية
         self.create_cases_list(sidebar_frame)
 
     def create_action_buttons(self, parent):
-        """إنشاء أزرار الإجراءات مع tooltips"""
-        buttons_frame = tk.Frame(parent, bg=self.colors['bg_card'])
-        buttons_frame.pack(fill='x', padx=15, pady=15)
-        
-        # زر إضافة حالة جديدة
-        add_case_btn = tk.Button(buttons_frame, text="➕ إضافة حالة جديدة",
-                                command=self.add_new_case,
-                                font=self.fonts['button'], bg=self.colors['button_save'], fg='white',
-                                relief='flat', padx=20, pady=12, width=20)
-        add_case_btn.pack(fill='x', pady=(0, 10))
-        self.create_tooltip(add_case_btn, "إضافة حالة جديدة للعميل")
-        
-        # زر حذف الحالة
-        del_case_btn = tk.Button(buttons_frame, text="🗑️ حذف الحالة",
-                                command=self.delete_case,
-                                font=self.fonts['button'], bg=self.colors['button_delete'], fg='white',
-                                relief='flat', padx=20, pady=12, width=20)
-        del_case_btn.pack(fill='x', pady=(0, 10))
-        self.create_tooltip(del_case_btn, "حذف الحالة المحددة وكل بياناتها")
-        
-        # زر إدارة الموظفين
-        manage_emp_btn = tk.Button(buttons_frame, text="👥 إدارة الموظفين",
-                                  command=self.manage_employees,
-                                  font=self.fonts['button'], bg=self.colors['button_action'], fg='white',
-                                  relief='flat', padx=20, pady=12, width=20)
-        manage_emp_btn.pack(fill='x', pady=(0, 10))
-        self.create_tooltip(manage_emp_btn, "إضافة أو حذف الموظفين في النظام")
-        
-        # زر عرض جميع الحالات
-        show_all_btn = tk.Button(buttons_frame, text="👁️ عرض جميع الحالات",
-                                command=self.show_all_cases_window,
-                                font=self.fonts['button'], bg=self.colors['button_secondary'], fg='white',
-                                relief='flat', padx=20, pady=12, width=20)
-        show_all_btn.pack(fill='x')
-        self.create_tooltip(show_all_btn, "عرض جميع الحالات في نافذة منفصلة")
-        
-        # إضافة تأثيرات بصرية لجميع الأزرار
-        buttons = [add_case_btn, del_case_btn, manage_emp_btn, show_all_btn]
-        colors = [self.colors['button_save'], self.colors['button_delete'], 
-                 self.colors['button_action'], self.colors['button_secondary']]
-        
-        for btn, color in zip(buttons, colors):
-            btn.bind('<Enter>', lambda e, b=btn, c=color: b.config(bg=self.lighten_color(c)))
-            btn.bind('<Leave>', lambda e, b=btn, c=color: b.config(bg=c))
+        """إنشاء أزرار الإجراءات مع tooltips - إزالة الأزرار المزدوجة"""
+        # إزالة جميع الأزرار المزدوجة من اللوحة الجانبية لأنها موجودة في شريط الأدوات
+        # لا نحتاج لأي أزرار هنا لأن جميع الأزرار موجودة في شريط الأدوات
+        pass
     
     def create_search_filters(self, parent):
-        """إنشاء أدوات البحث والفلترة"""
+        """إنشاء أدوات البحث والفلترة محسنة مع استغلال أفضل للمساحة"""
         filters_frame = tk.Frame(parent, bg=self.colors['bg_light'])
-        filters_frame.pack(fill='x', padx=10, pady=10)
+        filters_frame.pack(fill='x', padx=8, pady=6)
         
-        # فلترة السنة
+        # فلترة السنة - أكثر إحكاما
         year_frame = tk.Frame(filters_frame, bg=self.colors['bg_light'])
-        year_frame.pack(fill='x', pady=(0, 10))
+        year_frame.pack(fill='x', pady=(0, 6))
         
-        tk.Label(year_frame, text="السنة:", font=self.fonts['normal'], bg=self.colors['bg_light']).pack(side='right')
+        tk.Label(year_frame, text="السنة:", font=self.fonts['small'], bg=self.colors['bg_light']).pack(side='right')
         
         self.year_var = tk.StringVar(value="الكل")
         self.year_combo = ttk.Combobox(year_frame, textvariable=self.year_var, 
-                                      state='readonly', width=10)
-        self.year_combo.pack(side='right', padx=(5, 0))
+                                      state='readonly', width=8)
+        self.year_combo.pack(side='right', padx=(3, 0))
         self.year_combo.bind('<<ComboboxSelected>>', self.perform_search)
 
-        # اختيار نوع التاريخ
+        # اختيار نوع التاريخ - أكثر إحكاما
         self.date_field_var = tk.StringVar(value="received_date")
         self.date_field_combo = ttk.Combobox(year_frame, textvariable=self.date_field_var, 
                                              values=["تاريخ الورود", "تاريخ الإدخال"], 
-                                             state='readonly', width=12)
-        self.date_field_combo.pack(side='right', padx=(5, 0))
+                                             state='readonly', width=10)
+        self.date_field_combo.pack(side='right', padx=(3, 0))
         self.date_field_combo.bind('<<ComboboxSelected>>', self.update_year_filter_options)
         self.date_field_map = {"تاريخ الورود": "received_date", "تاريخ الإدخال": "created_date"}
         
-        # البحث المتقدم
+        # البحث المتقدم - أكثر إحكاما
         search_frame = tk.Frame(filters_frame, bg=self.colors['bg_light'])
         search_frame.pack(fill='x')
         
-        tk.Label(search_frame, text="البحث:", font=self.fonts['normal'], bg=self.colors['bg_light']).pack(anchor='e')
+        tk.Label(search_frame, text="البحث:", font=self.fonts['small'], bg=self.colors['bg_light']).pack(anchor='e')
         
         # نوع البحث
         search_type_frame = tk.Frame(search_frame, bg=self.colors['bg_light'])
-        search_type_frame.pack(fill='x', pady=(5, 0))
+        search_type_frame.pack(fill='x', pady=(3, 0))
         
         self.search_type_var = tk.StringVar(value="شامل")
         self.search_type_combo = ttk.Combobox(search_type_frame, textvariable=self.search_type_var,
-                                             state='readonly', width=18)
+                                             state='readonly', width=15)
         self.search_type_combo['values'] = [
             "شامل", "اسم العميل", "رقم المشترك", "العنوان", 
             "تصنيف المشكلة", "حالة المشكلة", "اسم الموظف"
@@ -971,34 +993,34 @@ Escape     - مسح التحديد
         
         # حقل البحث
         search_input_frame = tk.Frame(search_frame, bg=self.colors['bg_light'])
-        search_input_frame.pack(fill='x', pady=(5, 0))
+        search_input_frame.pack(fill='x', pady=(3, 0))
         
         self.search_value_var = tk.StringVar()
         self.search_entry = tk.Entry(search_input_frame, textvariable=self.search_value_var,
-                                    font=self.fonts['normal'])
+                                    font=self.fonts['small'])
         self.search_entry.pack(fill='x')
         self.search_entry.bind('<KeyRelease>', self.perform_search)
         
         # سيتم إنشاء الكومبو بوكس ديناميكياً حسب نوع البحث
         self.search_combo = None
         
-        # إضافة قائمة ترتيب
+        # إضافة قائمة ترتيب - أكثر إحكاما
         sort_frame = tk.Frame(parent, bg=self.colors['bg_light'])
-        sort_frame.pack(fill='x', padx=10, pady=(0, 10))
-        tk.Label(sort_frame, text="ترتيب حسب:", font=self.fonts['normal'], bg=self.colors['bg_light']).pack(side='right')
+        sort_frame.pack(fill='x', padx=8, pady=(0, 6))
+        tk.Label(sort_frame, text="ترتيب:", font=self.fonts['small'], bg=self.colors['bg_light']).pack(side='right')
         self.sort_var = tk.StringVar(value="السنة (تنازلي)")
         sort_options = ["السنة (تنازلي)", "السنة (تصاعدي)", "اسم العميل (أ-ي)", "اسم العميل (ي-أ)"]
-        self.sort_combo = ttk.Combobox(sort_frame, textvariable=self.sort_var, values=sort_options, state='readonly', width=18)
-        self.sort_combo.pack(side='right', padx=(5, 0))
+        self.sort_combo = ttk.Combobox(sort_frame, textvariable=self.sort_var, values=sort_options, state='readonly', width=15)
+        self.sort_combo.pack(side='right', padx=(3, 0))
         self.sort_combo.bind('<<ComboboxSelected>>', self.apply_sorting)
     
     def create_cases_list(self, parent):
         """
-        إنشاء قائمة الحالات مع دعم Scrollbar وتمرير بالماوس ولوحة المفاتيح
-        وجعل الـ Scrollbar ظاهر دائمًا، وتكبير البطاقات ومحاذاتها لليمين
+        إنشاء قائمة الحالات محسنة مع استغلال أفضل للمساحة
         """
         list_frame = tk.Frame(parent, bg=self.colors['bg_light'])
-        list_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        list_frame.pack(fill='both', expand=True, padx=6, pady=6)
+        
         list_canvas = tk.Canvas(list_frame, bg=self.colors['bg_light'], highlightthickness=0)
         style = ttk.Style()
         style.layout('AlwaysOn.TScrollbar',
@@ -1017,13 +1039,16 @@ Escape     - مسح التحديد
         scrollbar.pack(side="right", fill="y")
         self.cases_canvas = list_canvas
         self.cases_scrollbar = scrollbar
+        
         # دعم تمرير بالماوس
         def _on_mousewheel(event):
             list_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         list_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
         # دعم تمرير بالأسهم
         list_canvas.bind_all("<Up>", self._on_case_list_up)
         list_canvas.bind_all("<Down>", self._on_case_list_down)
+        
         self.selected_case_index = 0
         self.case_card_widgets = []
 
@@ -1046,10 +1071,10 @@ Escape     - مسح التحديد
             else:
                 case_id, customer_name, subscriber_number, status, category_name, _, modified_by_name, created_date, _ = case_data
             
-            # إنشاء إطار البطاقة مع تصميم محسن
+            # إنشاء إطار البطاقة مع تصميم محسن وأكثر إحكاما
             card_frame = tk.Frame(self.scrollable_frame, bg=self.colors['bg_light'], 
-                                 relief='solid', bd=1, padx=15, pady=12)
-            card_frame.pack(fill='x', padx=10, pady=5)
+                                 relief='solid', bd=1, padx=12, pady=8)
+            card_frame.pack(fill='x', padx=6, pady=3)
             
             # لون الحدود حسب الحالة
             status_colors = {
@@ -1226,90 +1251,69 @@ Escape     - مسح التحديد
             pass
     
     def create_main_display(self, parent):
-        """إنشاء منطقة العرض الرئيسية"""
-        # الإطار الرئيسي للعرض
+        """إنشاء منطقة العرض الرئيسية محسنة مع استغلال أفضل للمساحة"""
+        # الإطار الرئيسي للعرض - استغلال كامل للمساحة
         display_frame = tk.Frame(parent, bg='#ffffff', relief='raised', bd=1)
         display_frame.pack(side='left', fill='both', expand=True)
         
-        # رأس العرض
+        # رأس العرض - أكثر إحكاما
         self.create_display_header(display_frame)
         
-        # أزرار العمليات
+        # أزرار العمليات - مساحة أقل
         self.create_display_buttons(display_frame)
         
-        # نظام التبويبات
+        # نظام التبويبات - استغلال كامل للمساحة المتبقية
         self.create_tabs(display_frame)
     
     def create_display_header(self, parent):
-        """إنشاء رأس العرض"""
-        header_frame = tk.Frame(parent, bg=self.colors['header'], height=80)
+        """إنشاء رأس العرض محسن مع استغلال أفضل للمساحة"""
+        header_frame = tk.Frame(parent, bg=self.colors['header'], height=60)
         header_frame.pack(fill='x')
         header_frame.pack_propagate(False)
         
-        # اسم العميل
+        # اسم العميل - أكثر إحكاما
         self.customer_name_label = tk.Label(header_frame, text="اختر حالة من القائمة",
-                                           font=self.fonts['header'], fg=self.colors['header_text'], bg=self.colors['header'])
-        self.customer_name_label.pack(expand=True, pady=(10, 0))
+                                           font=self.fonts['subheader'], fg=self.colors['header_text'], bg=self.colors['header'])
+        self.customer_name_label.pack(expand=True, pady=(8, 0))
         
-        # الموظف المسؤول عن الحل
+        # الموظف المسؤول عن الحل - أكثر إحكاما
         self.solved_by_label = tk.Label(header_frame, text="",
-                                       font=self.fonts['normal'], fg=self.colors['text_subtle'], bg=self.colors['header'])
-        self.solved_by_label.pack(pady=(0, 10))
+                                       font=self.fonts['small'], fg=self.colors['text_subtle'], bg=self.colors['header'])
+        self.solved_by_label.pack(pady=(0, 8))
     
     def create_display_buttons(self, parent):
-        """إنشاء أزرار العمليات مع tooltips"""
-        buttons_frame = tk.Frame(parent, bg=self.colors['bg_card'], height=70)
+        """إنشاء أزرار العمليات مع tooltips - إزالة الأزرار المزدوجة"""
+        # إزالة الأزرار المزدوجة لأنها موجودة في شريط الأدوات
+        # إزالة منطقة الأزرار تماماً لتوفير مساحة
+        buttons_frame = tk.Frame(parent, bg=self.colors['bg_card'], height=10)
         buttons_frame.pack(fill='x')
         buttons_frame.pack_propagate(False)
         
-        # زر حفظ التغييرات
-        self.save_btn = tk.Button(buttons_frame, text="💾 حفظ التغييرات",
-                                 command=self.save_changes,
-                                 font=self.fonts['button'], bg=self.colors['button_save'], fg='white',
-                                 relief='flat', padx=25, pady=12, state='disabled', width=20)
-        self.save_btn.pack(side='right', padx=15, pady=15)
-        self.create_tooltip(self.save_btn, "حفظ التغييرات في قاعدة البيانات")
-        
-        # زر طباعة
-        self.print_btn = tk.Button(buttons_frame, text="🖨️ طباعة",
-                                  command=self.print_case,
-                                  font=self.fonts['button'], bg=self.colors['button_action'], fg='white',
-                                  relief='flat', padx=25, pady=12, state='disabled', width=20)
-        self.print_btn.pack(side='right', padx=(0, 15), pady=15)
-        self.create_tooltip(self.print_btn, "طباعة تقرير الحالة")
-        
-        # زر إعادة تحميل
-        refresh_btn = tk.Button(buttons_frame, text="🔄 إعادة تحميل",
-                               command=self.refresh_data,
-                               font=self.fonts['button'], bg=self.colors['button_secondary'], fg='white',
-                               relief='flat', padx=25, pady=12, width=20)
-        refresh_btn.pack(side='right', padx=(0, 15), pady=15)
-        self.create_tooltip(refresh_btn, "إعادة تحميل البيانات من قاعدة البيانات")
-        
-        # إضافة تأثيرات بصرية للأزرار
-        buttons = [self.save_btn, self.print_btn, refresh_btn]
-        colors = [self.colors['button_save'], self.colors['button_action'], self.colors['button_secondary']]
-        
-        for btn, color in zip(buttons, colors):
-            btn.bind('<Enter>', lambda e, b=btn, c=color: b.config(bg=self.lighten_color(c)))
-            btn.bind('<Leave>', lambda e, b=btn, c=color: b.config(bg=c))
+        # إنشاء أزرار فارغة لتجنب أخطاء الكود (لن تستخدم)
+        self.save_btn = tk.Button(buttons_frame, text="", command=lambda: None, state='disabled')
+        self.print_btn = tk.Button(buttons_frame, text="", command=lambda: None, state='disabled')
+        self.save_btn.pack_forget()  # إخفاء الزر
+        self.print_btn.pack_forget()  # إخفاء الزر
     
     def create_tabs(self, parent):
-        """إنشاء نظام التبويبات"""
-        # إطار التبويبات
+        """إنشاء نظام التبويبات محسن مع استغلال أفضل للمساحة"""
+        # إطار التبويبات - استغلال كامل للمساحة
         tabs_frame = tk.Frame(parent, bg='#ffffff')
-        tabs_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        tabs_frame.pack(fill='both', expand=True, padx=5, pady=5)
 
-        # نوت بوك التبويبات
+        # نوت بوك التبويبات مع اتجاه RTL
         self.notebook = ttk.Notebook(tabs_frame)
         self.notebook.pack(fill='both', expand=True)
-
-        # التبويبات
-        self.create_basic_data_tab()
-        self.create_attachments_tab()
-        self.create_correspondences_tab()
-        self.create_audit_log_tab()
+        
+        # التبويبات - ترتيب عكسي للتوافق مع RTL
         self.create_reports_tab()
+        self.create_audit_log_tab()
+        self.create_correspondences_tab()
+        self.create_attachments_tab()
+        self.create_basic_data_tab()
+        
+        # تحديد تبويب البيانات الأساسية كافتراضي
+        self.notebook.select(4)  # التبويب الأخير (البيانات الأساسية)
 
     def create_reports_tab(self):
         """إنشاء تبويب التقارير"""
@@ -1369,9 +1373,9 @@ Escape     - مسح التحديد
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
 
-        # الحقول
+        # الحقول - أكثر إحكاما
         fields_frame = tk.Frame(scrollable_frame, bg=self.colors['bg_light'])
-        fields_frame.pack(fill='both', expand=True, padx=30, pady=30)
+        fields_frame.pack(fill='both', expand=True, padx=20, pady=20)
 
         # بيانات العميل
         customer_section = tk.LabelFrame(fields_frame, text="بيانات العميل", 
@@ -1531,9 +1535,9 @@ Escape     - مسح التحديد
         attachments_frame = ttk.Frame(self.notebook)
         self.notebook.add(attachments_frame, text="المرفقات")
         
-        # أزرار المرفقات
+        # أزرار المرفقات - أكثر إحكاما
         buttons_frame = tk.Frame(attachments_frame, bg=self.colors['bg_light'])
-        buttons_frame.pack(fill='x', padx=10, pady=10)
+        buttons_frame.pack(fill='x', padx=8, pady=6)
         
         add_attachment_btn = tk.Button(buttons_frame, text="📎 إضافة مرفق",
                                       command=self.add_attachment,
@@ -1571,9 +1575,9 @@ Escape     - مسح التحديد
         correspondences_frame = ttk.Frame(self.notebook)
         self.notebook.add(correspondences_frame, text="المراسلات")
         
-        # أزرار المراسلات
+        # أزرار المراسلات - أكثر إحكاما
         buttons_frame = tk.Frame(correspondences_frame, bg=self.colors['bg_light'])
-        buttons_frame.pack(fill='x', padx=10, pady=10)
+        buttons_frame.pack(fill='x', padx=8, pady=6)
         
         add_correspondence_btn = tk.Button(buttons_frame, text="✉️ إضافة مراسلة",
                                           command=self.add_correspondence,
@@ -1672,6 +1676,10 @@ Escape     - مسح التحديد
             
             # تحديث أزرار العمليات
             self.update_action_buttons_style()
+            
+            # تحديد تبويب البيانات الأساسية
+            if hasattr(self, 'notebook'):
+                self.notebook.select(4)  # التبويب الأخير (البيانات الأساسية)
             
             self.show_notification("تم تهيئة النموذج لإضافة حالة جديدة", notification_type="info")
             
@@ -2182,8 +2190,7 @@ Escape     - مسح التحديد
         try:
             if hasattr(self, 'cases_count_label') and self.cases_count_label and self.cases_count_label.winfo_exists():
                 total_cases = len(self.cases_data)
-                active_cases = len([case for case in self.cases_data if case.get('status') not in ['تم حلها', 'مغلقة']])
-                self.cases_count_label.config(text=f"📋 الحالات: {total_cases} (نشطة: {active_cases})")
+                self.cases_count_label.config(text=f"📋 جميع الحالات: {total_cases}")
         except Exception as e:
             # تجاهل الأخطاء في تحديث شريط الحالة
             pass
@@ -2505,8 +2512,7 @@ Escape     - مسح التحديد
                 try:
                     if hasattr(self, 'cases_count_label') and self.cases_count_label and self.cases_count_label.winfo_exists():
                         total_cases = len(self.cases_data)
-                        active_cases = len([case for case in self.cases_data if case.get('status') not in ['تم حلها', 'مغلقة']])
-                        self.cases_count_label.config(text=f"📋 الحالات: {total_cases} (نشطة: {active_cases})")
+                        self.cases_count_label.config(text=f"📋 جميع الحالات: {total_cases}")
                 except Exception:
                     pass
                 
@@ -2570,7 +2576,7 @@ Escape     - مسح التحديد
     def show_dashboard(self):
         """عرض لوحة التحكم الرئيسية (نسخة محسنة تدعم الاستجابة)"""
         self.clear_root()
-        self.create_fixed_header()
+        self.show_notification("مرحباً بك في لوحة التحكم الرئيسية", notification_type="info")
 
         dash_frame = tk.Frame(self.root, bg=self.colors['bg_main'])
         dash_frame.pack(fill='both', expand=True, padx=10, pady=10)
@@ -2578,7 +2584,7 @@ Escape     - مسح التحديد
         dash_frame.columnconfigure(0, weight=1)
 
         # العنوان الرئيسي
-        title_label = tk.Label(dash_frame, text="لوحة عرض الحالات",
+        title_label = tk.Label(dash_frame, text="🏠 لوحة عرض الحالات - نظام إدارة مشاكل العملاء",
                               font=self.fonts['header'], fg=self.colors['text_main'],
                               bg=self.colors['bg_main'], anchor='e', justify='right')
         title_label.grid(row=0, column=0, sticky='ew', pady=(10, 15), padx=10)
@@ -2594,11 +2600,28 @@ Escape     - مسح التحديد
         active_cases = len([case for case in cases if (case.get('status') if isinstance(case, dict) else (case[3] if len(case) > 3 else '')) not in ['تم حلها', 'مغلقة']])
         solved_cases = len([case for case in cases if (case.get('status') if isinstance(case, dict) else (case[3] if len(case) > 3 else '')) == 'تم حلها'])
 
-        stats_text = f"إجمالي الحالات: {total_cases}    |    الحالات النشطة: {active_cases}    |    الحالات المحلولة: {solved_cases}"
-        stats_label = tk.Label(stats_frame, text=stats_text,
-                              font=self.fonts['normal'], fg=self.colors['text_main'],
-                              bg=self.colors['bg_card'], anchor='e', justify='right')
-        stats_label.grid(row=0, column=0, sticky='ew', pady=10, padx=10)
+        # إطار للإحصائيات مع تصميم محسن
+        stats_inner_frame = tk.Frame(stats_frame, bg=self.colors['bg_card'])
+        stats_inner_frame.pack(expand=True, fill='both', padx=15, pady=15)
+        stats_inner_frame.columnconfigure(0, weight=1)
+        stats_inner_frame.columnconfigure(1, weight=1)
+        stats_inner_frame.columnconfigure(2, weight=1)
+
+        # إحصائيات منفصلة مع أيقونات
+        total_label = tk.Label(stats_inner_frame, text=f"📊 إجمالي الحالات: {total_cases}",
+                              font=self.fonts['subheader'], fg=self.colors['text_main'],
+                              bg=self.colors['bg_card'], anchor='center')
+        total_label.grid(row=0, column=0, sticky='ew', padx=5)
+
+        active_label = tk.Label(stats_inner_frame, text=f"🔄 الحالات النشطة: {active_cases}",
+                               font=self.fonts['subheader'], fg='#e67e22',
+                               bg=self.colors['bg_card'], anchor='center')
+        active_label.grid(row=0, column=1, sticky='ew', padx=5)
+
+        solved_label = tk.Label(stats_inner_frame, text=f"✅ الحالات المحلولة: {solved_cases}",
+                               font=self.fonts['subheader'], fg='#27ae60',
+                               bg=self.colors['bg_card'], anchor='center')
+        solved_label.grid(row=0, column=2, sticky='ew', padx=5)
 
         # جدول الحالات النشطة
         tree_frame = tk.Frame(dash_frame, bg=self.colors['bg_main'])
@@ -2610,6 +2633,8 @@ Escape     - مسح التحديد
                              font=self.fonts['subheader'], fg=self.colors['text_main'],
                              bg=self.colors['bg_main'], anchor='e', justify='right')
         tree_title.grid(row=0, column=0, sticky='ew', pady=(0, 5))
+
+
 
         columns = ("اسم العميل", "رقم المشترك", "تصنيف المشكلة", "حالة المشكلة", "تاريخ الإضافة")
         tree = ttk.Treeview(tree_frame, columns=columns, show='headings')
@@ -2626,33 +2651,50 @@ Escape     - مسح التحديد
         # تحميل البيانات - عرض فقط الحالات النشطة
         filtered_cases = [case for case in cases if (case.get('status') if isinstance(case, dict) else (case[3] if len(case) > 3 else '')) not in ['تم حلها', 'مغلقة']]
         for case in filtered_cases:
-            tree.insert('', 'end', values=(
+            item = tree.insert('', 'end', values=(
                 case.get('customer_name', '') if isinstance(case, dict) else case[1],
                 case.get('subscriber_number', '') if isinstance(case, dict) else case[2],
                 case.get('category_name', '') if isinstance(case, dict) else case[4],
                 case.get('status', '') if isinstance(case, dict) else case[3],
                 case.get('created_date', '') if isinstance(case, dict) else case[7]
             ))
+            # ربط النقر على الحالة للانتقال إليها
+            tree.tag_bind(item, '<Double-Button-1>', lambda e, c=case: self.load_case_from_dashboard(c))
 
         # أزرار التحكم
         buttons_frame = tk.Frame(dash_frame, bg=self.colors['bg_main'])
         buttons_frame.grid(row=3, column=0, sticky='ew', pady=10, padx=10)
         buttons_frame.columnconfigure(0, weight=1)
         buttons_frame.columnconfigure(1, weight=1)
+        buttons_frame.columnconfigure(2, weight=1)
 
-        enter_btn = tk.Button(buttons_frame, text="🚀 دخول للنظام",
+        # إطار للأزرار مع توزيع أفضل
+        buttons_inner_frame = tk.Frame(buttons_frame, bg=self.colors['bg_main'])
+        buttons_inner_frame.pack(expand=True)
+        buttons_inner_frame.columnconfigure(0, weight=1)
+        buttons_inner_frame.columnconfigure(1, weight=1)
+        buttons_inner_frame.columnconfigure(2, weight=1)
+
+        enter_btn = tk.Button(buttons_inner_frame, text="🚀 دخول للنظام",
                              command=self.show_main_window,
                              font=self.fonts['button'], bg=self.colors['button_action'], fg='white',
                              relief='flat', padx=30, pady=15)
-        enter_btn.grid(row=0, column=1, sticky='e', padx=5)
+        enter_btn.grid(row=0, column=2, sticky='ew', padx=5)
         self.create_tooltip(enter_btn, "الانتقال إلى النظام الرئيسي")
 
-        settings_btn = tk.Button(buttons_frame, text="⚙️ الإعدادات",
+        settings_btn = tk.Button(buttons_inner_frame, text="⚙️ الإعدادات",
                                 command=self.show_settings_window,
                                 font=self.fonts['button'], bg=self.colors['button_secondary'], fg='white',
                                 relief='flat', padx=30, pady=15)
-        settings_btn.grid(row=0, column=0, sticky='e', padx=5)
+        settings_btn.grid(row=0, column=1, sticky='ew', padx=5)
         self.create_tooltip(settings_btn, "إعدادات النظام")
+
+        exit_btn = tk.Button(buttons_inner_frame, text="🚪 خروج",
+                            command=self.on_closing,
+                            font=self.fonts['button'], bg='#e74c3c', fg='white',
+                            relief='flat', padx=30, pady=15)
+        exit_btn.grid(row=0, column=0, sticky='ew', padx=5)
+        self.create_tooltip(exit_btn, "إغلاق النظام")
 
         # دعم تغيير الحجم التلقائي للأعمدة عند تغيير حجم النافذة
         def on_resize(event=None):
@@ -2666,13 +2708,31 @@ Escape     - مسح التحديد
         self.root.update_idletasks()
         on_resize()
 
+    def load_case_from_dashboard(self, case):
+        """الانتقال من الـ dashboard إلى الحالة المحددة"""
+        # حفظ الحالة المحددة للتحميل لاحقاً
+        self.pending_dashboard_case = case
+        
+        # الانتقال إلى النافذة الرئيسية
+        self.show_main_window()
+        
+        # إشعار المستخدم
+        customer_name = case.get('customer_name', '') if isinstance(case, dict) else case[1] if len(case) > 1 else ''
+        self.show_notification(f"جاري تحميل حالة العميل: {customer_name}", notification_type="info")
+    
+
+
     def clear_root(self):
         for widget in self.root.winfo_children():
             widget.destroy()
 
     def show_main_window(self):
         self.clear_root()
+        # إعادة إنشاء القوائم المنسدلة وشريط الأدوات
+        self.create_menu_bar()
+        self.create_toolbar()
         self.create_main_layout()
+        self.create_status_bar()
         self.after_main_layout()
 
     def run(self):
@@ -2823,6 +2883,10 @@ Escape     - مسح التحديد
             
             # تحديث البطاقة المحددة
             self._update_selected_case_index(case_id)
+            
+            # تحديد تبويب البيانات الأساسية
+            if hasattr(self, 'notebook'):
+                self.notebook.select(4)  # التبويب الأخير (البيانات الأساسية)
             
             self.show_notification(f"تم تحميل حالة: {customer_name}", notification_type="info")
             
