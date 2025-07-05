@@ -10,7 +10,7 @@ Date: December 2024
 """
 
 # Version information
-VERSION = "5.0.0"
+VERSION = "5.0.1"
 
 import sys
 from error_handler import handle_error
@@ -228,7 +228,7 @@ def initialize_system():
 def show_splash_screen():
     """عرض شاشة البداية"""
     splash = tk.Toplevel()
-    splash.title("نظام إدارة مشاكل العملاء")
+    splash.title("نظام إدارة مشاكل العملاء v5.0.1")
     splash.geometry("600x400")
     splash.resizable(False, False)
     
@@ -268,7 +268,7 @@ def show_splash_screen():
     # الإصدار
     version_label = tk.Label(
         main_frame,
-        text="الإصدار 5.0.0 - النسخة المحسنة",
+        text="الإصدار 5.0.1 - النسخة المحسنة",
         font=('Arial', 12),
         fg='#3498db',
         bg='#2c3e50'
@@ -340,7 +340,7 @@ def main():
     setup_logging()
     
     logging.info("=" * 50)
-    logging.info("بدء تشغيل نظام إدارة مشاكل العملاء v5.0.0")
+    logging.info("بدء تشغيل نظام إدارة مشاكل العملاء v5.0.1")
     logging.info(f"نظام التشغيل: {platform.system()} {platform.release()}")
     logging.info(f"إصدار Python: {sys.version}")
     logging.info("=" * 50)
